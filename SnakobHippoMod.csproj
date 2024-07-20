@@ -7,11 +7,15 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <None Remove="Assets\hippo" />
     <None Remove="Assets\hippobottle" />
+    <None Remove="Assets\hipposmallragdoll" />
   </ItemGroup>
 
   <ItemGroup>
+    <EmbeddedResource Include="Assets\hippo" />
     <EmbeddedResource Include="Assets\hippobottle" />
+    <EmbeddedResource Include="Assets\hipposmallragdoll" />
   </ItemGroup>
 
   <ItemGroup>
