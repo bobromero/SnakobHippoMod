@@ -39,23 +39,23 @@ namespace SnakobHippoMod {
 
             static void Postfix(NetWaterBottleSpawner __instance)
             {
-                //Melon<HippoMelon>.Logger.Msg(__instance.waterBottleInstance.name);
-                __instance.waterBottleInstance.transform.rotation = Quaternion.EulerAngles(0f, 0f, 0f);
+                Melon<HippoMelon>.Logger.Msg(__instance.waterBottleInstance.name);
+                __instance.waterBottleInstance.transform.rotation = Quaternion.EulerAngles(0f, 180f, 0f);
             }
+
         }
 
         [HarmonyPatch(typeof(HatTrickManager))]
         [HarmonyPatch(nameof(HatTrickManager.HatTrick))] // if possible use nameof() here
         class Patch02 {
             static bool Prefix(HatTrickManager __instance, ref Player player) {
-                IEnumerator SetHipposInactiveAfterDelay(Transform parent)
+                IEnumerator SetHipposInactiveAfterDelay(GameObject hippoobject)
                 {
+                    MelonLogger.Msg("Called");
                     yield return new WaitForSeconds(4);
-
-                    foreach (Transform child in parent)
-                    {
-                        child.gameObject.SetActive(false);
-                    }
+                    MelonLogger.Msg("Waited");
+                    hippoobject.SetActive(false);
+                    MelonLogger.Msg("Set Inactive");
                 }
 
                 if (HippoMini) 
@@ -63,8 +63,8 @@ namespace SnakobHippoMod {
                     for (int i = 0; i < __instance.hatContainer.childCount; i++)
                     {
                         __instance.hatContainer.transform.GetChild(i).gameObject.SetActive(true);
+                        MelonCoroutines.Start(SetHipposInactiveAfterDelay(__instance.hatContainer.transform.GetChild(i).gameObject));
                     }
-                    MelonCoroutines.Start(SetHipposInactiveAfterDelay(__instance.hatContainer));
                 }
 
                 return true;
@@ -128,7 +128,7 @@ namespace SnakobHippoMod {
                     System.Random rnd = new System.Random();
                     for (int i = 0; i < 3; i++)
                     {
-                        GameObject hippoInstance = GameObject.Instantiate(HippoMini, puckPosition, Quaternion.identity);
+                        GameObject hippoInstance = GameObject.Instantiate(Hippo, puckPosition, Quaternion.identity);
                         Melon<HippoMelon>.Logger.Warning("Instantiated HippoMini");
 
                         float x = rnd.Next(-50, 50);
