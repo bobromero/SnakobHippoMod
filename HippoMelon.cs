@@ -4,9 +4,6 @@ using UnityEngine;
 using HarmonyLib;
 using System.Collections;
 using SlapshotModdingUtils;
-using static Il2CppRewired.UI.ControlMapper.ControlMapper;
-using System.Reflection.Metadata.Ecma335;
-using Il2CppInterop.Runtime;
 
 namespace SnakobHippoMod {
     public class HippoMelon : MelonMod {
@@ -17,9 +14,6 @@ namespace SnakobHippoMod {
 
         public static Transform? hippoContainer;
         public static bool spawnedhippos = false;
-
-        private static HippoMelon _instance;
-        public static HippoMelon Instance => _instance;
 
 
         [HarmonyPatch(typeof(NetWaterBottleSpawner))]
@@ -33,14 +27,14 @@ namespace SnakobHippoMod {
                     Melon<HippoMelon>.Logger.Msg("Changing prefab");
                     __instance.waterBottlePrefab = HippoBottle;
                 }
-
                 return true;
             }
 
             static void Postfix(NetWaterBottleSpawner __instance)
             {
-                Melon<HippoMelon>.Logger.Msg(__instance.waterBottleInstance.name);
+                //Melon<HippoMelon>.Logger.Msg(__instance.waterBottleInstance.name);
                 __instance.waterBottleInstance.transform.rotation = Quaternion.EulerAngles(0f, 180f, 0f);
+
             }
 
         }
@@ -48,26 +42,54 @@ namespace SnakobHippoMod {
         [HarmonyPatch(typeof(HatTrickManager))]
         [HarmonyPatch(nameof(HatTrickManager.HatTrick))] // if possible use nameof() here
         class Patch02 {
-            static bool Prefix(HatTrickManager __instance, ref Player player) {
-                IEnumerator SetHipposInactiveAfterDelay(GameObject hippoobject)
+            static void Prefix(HatTrickManager __instance, ref Player player) {
+
+                IEnumerator ActivateHipposAffterDelay(GameObject hippoobject)
                 {
-                    MelonLogger.Msg("Called");
-                    yield return new WaitForSeconds(4);
-                    MelonLogger.Msg("Waited");
+                    yield return new WaitForSeconds(UnityEngine.Random.RandomRange(0f, 1f));
+                    hippoobject.SetActive(true);
+                    var rb = hippoobject.GetComponent<Rigidbody>();
+                    rb.velocity = Vector3.zero;
+                    hippoobject.transform.GetChild(0).GetChild(0).GetComponent<Rigidbody>().velocity = Vector3.zero;
+                    Vector3 spawnPos = __instance.spawns[UnityEngine.Random.RandomRange(0, __instance.spawns.Count)].transform.position;
+                    hippoobject.transform.position = spawnPos;
+
+
+                    //super mega workaround going to blow up bad computers maybe
+                    var rbr = hippoobject.transform.GetComponentsInChildren<Rigidbody>(true);
+                    //MelonLogger.Msg("size of rbr: " + rbr.Count);
+                    foreach (var rigidbody in rbr)
+                    {
+                        rigidbody.velocity = Vector3.zero;
+                    }
+                    var force = new Vector3(-hippoobject.transform.position.normalized.x, .5f, -hippoobject.transform.position.normalized.z) * 100000f;
+                    hippoobject.transform.GetChild(0).GetChild(0).GetComponent<Rigidbody>().AddForce(force);
+
+                    MelonCoroutines.Start(DeactivateHipposAfterDelay(hippoobject));
+                }
+
+                IEnumerator DeactivateHipposAfterDelay(GameObject hippoobject)
+                {
+                    
+                    //MelonLogger.Msg("Called");
+                    yield return new WaitForSeconds(8);
+                    //MelonLogger.Msg("Waited");
+                    hippoobject.transform.position = Vector3.zero;
+                    hippoobject.transform.GetChild(0).GetChild(0).position = Vector3.zero;
                     hippoobject.SetActive(false);
-                    MelonLogger.Msg("Set Inactive");
+                    //MelonLogger.Msg("Set Inactive");
                 }
 
                 if (HippoMini) 
                 {
-                    for (int i = 0; i < __instance.hatContainer.childCount; i++)
+                    var hippoContainer = __instance.hatContainer.transform;
+
+                    for (int i = 0; i < hippoContainer.childCount; i++)
                     {
-                        __instance.hatContainer.transform.GetChild(i).gameObject.SetActive(true);
-                        MelonCoroutines.Start(SetHipposInactiveAfterDelay(__instance.hatContainer.transform.GetChild(i).gameObject));
+                        var hip = hippoContainer.GetChild(i).gameObject;
+                        MelonCoroutines.Start(ActivateHipposAffterDelay(hip));
                     }
                 }
-
-                return true;
             }
 
             //static void Postfix(NetWaterBottleSpawner __instance) {
@@ -84,6 +106,7 @@ namespace SnakobHippoMod {
         {
             public static bool hasRan = false;
 
+
             static void Postfix()
             {
                 if (hasRan) { return; }
@@ -99,7 +122,7 @@ namespace SnakobHippoMod {
 
                     for (int i = 0; i < 13; i++)
                     {
-                        var go = GameObject.Instantiate(HippoMini);
+                        var go = GameObject.Instantiate(Hippo);
                         go.transform.SetParent(hatTrickManager.hatContainer, false);
                         go.SetActive(false);
                     }
@@ -116,20 +139,34 @@ namespace SnakobHippoMod {
         [HarmonyPatch(nameof(Game.OnGoalScored))] // if possible use nameof() here
         class Patch04
         {
+            public static bool hasRan = false;
+            public static bool UserScored = false;
+
+            static void Prefix(Game __instance, ref GoalScoredPacket goalScored)
+            {
+                Melon<HippoMelon>.Logger.Msg(goalScored.ScorerID);
+                Melon<HippoMelon>.Logger.Msg(__instance.GetLocalPlayerId());
+                
+
+            }
+
             static void Postfix(Game __instance)
             {
-                Melon<HippoMelon>.Logger.Warning("Started");
-                GameObject puck = GameObject.Find("puck(Clone)");
+                if (hasRan) {
+                    //MelonLogger.Error("not spawning more hippos");
+                    hasRan= false;
+                    return; }
+                //Melon<HippoMelon>.Logger.Warning("Started");
+                GameObject puck = AppManager.Instance.game.Pucks[0].gameObject;
                 if (puck != null)
                 {
-                    Melon<HippoMelon>.Logger.Warning("Found puck");
+                    //Melon<HippoMelon>.Logger.Warning("Found puck");
                     Vector3 puckPosition = puck.transform.position;
 
                     System.Random rnd = new System.Random();
                     for (int i = 0; i < 3; i++)
                     {
                         GameObject hippoInstance = GameObject.Instantiate(Hippo, puckPosition, Quaternion.identity);
-                        Melon<HippoMelon>.Logger.Warning("Instantiated HippoMini");
 
                         float x = rnd.Next(-50, 50);
                         float y = rnd.Next(0, 20);
@@ -140,6 +177,20 @@ namespace SnakobHippoMod {
 
                         MelonCoroutines.Start(SimulateForce(hippoInstance, forceDirection));
                     }
+                    for (int i = 0; i < 6; i++)
+                    {
+                        GameObject hippoInstance = GameObject.Instantiate(HippoMini, puckPosition, Quaternion.identity);
+
+                        float x = rnd.Next(-50, 50);
+                        float y = rnd.Next(0, 20);
+                        float z = rnd.Next(-59, 20);
+
+                        Vector3 forceDirection = new Vector3(x, y, z);
+                        MelonLogger.Msg(forceDirection);
+
+                        MelonCoroutines.Start(SimulateForce(hippoInstance, forceDirection));
+                    }
+                    hasRan = true;
                 }
                 else
                 {
@@ -179,6 +230,7 @@ namespace SnakobHippoMod {
             static void Postfix()
             {
                 Patch03.hasRan = false;
+                MelonLogger.Error("switch this to loading for edge case where you load into a match from a bot match/practice if its even doing anything");
             }
         }
 
@@ -189,7 +241,7 @@ namespace SnakobHippoMod {
         Melon<HippoMelon>.Logger.Msg("Initialized");
 
 
-        prefabs = SlapshotModdingUtils.AssetBundleHelper.LoadAssets(System.Reflection.Assembly.GetExecutingAssembly(),GetType().Namespace);
+        prefabs = AssetBundleHelper.LoadAssets(System.Reflection.Assembly.GetExecutingAssembly(),GetType().Namespace);
 
             var assembly = System.Reflection.Assembly.GetExecutingAssembly();
             foreach (var resourceName in assembly.GetManifestResourceNames())
@@ -218,7 +270,18 @@ namespace SnakobHippoMod {
         }
 
         public override void OnUpdate() {
-            
+            if (Input.GetKeyDown(KeyCode.P)) {
+                try
+                {
+                    var htm = GameObject.FindObjectOfType<HatTrickManager>();
+
+                    htm.HatTrick(AppManager.Instance.game.localPlayer, 3);
+                }
+                catch
+                {
+                    Melon<HippoMelon>.Logger.Warning("ho Hat TrickManager found");
+                }
+            }
         }
     }
 }
