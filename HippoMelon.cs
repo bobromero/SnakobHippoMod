@@ -7,6 +7,40 @@ using SlapshotModdingUtils;
 
 namespace SnakobHippoMod {
     public class HippoMelon : MelonMod {
+
+        public enum HippoSize
+        {
+            small,
+            BIG,
+        }
+
+        #region MelonCategories
+        public MelonPreferences_Category HippoBottlemus;
+        public MelonPreferences_Category HippoGoalExplosion;
+        public MelonPreferences_Category GoalExplosionSettings;
+        public MelonPreferences_Category HippoHatTrick;
+        #endregion
+
+        #region MelonPrefEntries
+
+        public MelonPreferences_Entry<bool> UseGoalExplosion;
+        public MelonPreferences_Entry<bool> PersonalGoalExplosions;
+        public MelonPreferences_Entry<MelonPreferences_Category> GoalExplosionSettingsCategory;
+        public MelonPreferences_Entry<int> NumBigHippos;
+        public MelonPreferences_Entry<int> NumSmallHippos;
+
+
+        public MelonPreferences_Entry<bool> UseHippoBottle;
+
+        public MelonPreferences_Entry<bool> UseHippoHatTrick;
+        public MelonPreferences_Entry<HippoSize> HatTrickHippoSize;
+
+
+        #endregion
+
+
+
+        #region modVars
         public List<GameObject> prefabs = new List<GameObject>();
         public static GameObject? HippoBottle;
         public static GameObject? HippoMini;
@@ -15,6 +49,9 @@ namespace SnakobHippoMod {
         public static Transform? hippoContainer;
         public static bool spawnedhippos = false;
 
+        #endregion
+
+        #region Patches
 
         [HarmonyPatch(typeof(NetWaterBottleSpawner))]
         [HarmonyPatch(nameof(NetWaterBottleSpawner.SpawnWaterBottle))] // if possible use nameof() here
@@ -22,6 +59,10 @@ namespace SnakobHippoMod {
         {
             static bool Prefix(NetWaterBottleSpawner __instance)
             {
+                if (!Melon<HippoMelon>.Instance.UseHippoBottle.Value)
+                {
+                    return true;
+                }
                 if (HippoBottle && __instance.waterBottlePrefab != HippoBottle)
                 {
                     Melon<HippoMelon>.Logger.Msg("Changing prefab");
@@ -32,6 +73,10 @@ namespace SnakobHippoMod {
 
             static void Postfix(NetWaterBottleSpawner __instance)
             {
+                if (!Melon<HippoMelon>.Instance.UseHippoBottle.Value)
+                {
+                    return;
+                }
                 //Melon<HippoMelon>.Logger.Msg(__instance.waterBottleInstance.name);
                 __instance.waterBottleInstance.transform.rotation = Quaternion.EulerAngles(0f, 180f, 0f);
 
@@ -41,8 +86,14 @@ namespace SnakobHippoMod {
 
         [HarmonyPatch(typeof(HatTrickManager))]
         [HarmonyPatch(nameof(HatTrickManager.HatTrick))] // if possible use nameof() here
-        class Patch02 {
-            static void Prefix(HatTrickManager __instance, ref Player player) {
+        class Patch02
+        {
+            static void Prefix(HatTrickManager __instance, ref Player player)
+            {
+                if (!Melon<HippoMelon>.Instance.UseHippoHatTrick.Value)
+                {
+                    return;
+                }
 
                 IEnumerator ActivateHipposAffterDelay(GameObject hippoobject)
                 {
@@ -70,7 +121,7 @@ namespace SnakobHippoMod {
 
                 IEnumerator DeactivateHipposAfterDelay(GameObject hippoobject)
                 {
-                    
+
                     //MelonLogger.Msg("Called");
                     yield return new WaitForSeconds(8);
                     //MelonLogger.Msg("Waited");
@@ -80,7 +131,7 @@ namespace SnakobHippoMod {
                     //MelonLogger.Msg("Set Inactive");
                 }
 
-                if (HippoMini) 
+                if (HippoMini && Hippo)
                 {
                     var hippoContainer = __instance.hatContainer.transform;
 
@@ -91,12 +142,6 @@ namespace SnakobHippoMod {
                     }
                 }
             }
-
-            //static void Postfix(NetWaterBottleSpawner __instance) {
-            //    //Melon<HippoMelon>.Logger.Msg(__instance.waterBottleInstance.name);
-            //    //__instance.waterBottleInstance.transform.rotation = Quaternion.EulerAngles(0f, 0f, 0f);
-            //}
-
 
         }
 
@@ -109,6 +154,12 @@ namespace SnakobHippoMod {
 
             static void Postfix()
             {
+                var melinst = Melon<HippoMelon>.Instance;
+                if (!melinst.UseHippoHatTrick.Value)
+                {
+                    return;
+                }
+
                 if (hasRan) { return; }
                 HatTrickManager hatTrickManager = UnityEngine.Object.FindObjectOfType<HatTrickManager>();
 
@@ -119,10 +170,10 @@ namespace SnakobHippoMod {
                     {
                         GameObject.Destroy(hatTrickManager.hatContainer.transform.GetChild(i).gameObject);
                     }
-
+                    var hippoSize = melinst.HatTrickHippoSize.Value == HippoSize.BIG ? Hippo : HippoMini;
                     for (int i = 0; i < 13; i++)
                     {
-                        var go = GameObject.Instantiate(Hippo);
+                        var go = GameObject.Instantiate(hippoSize);
                         go.transform.SetParent(hatTrickManager.hatContainer, false);
                         go.SetActive(false);
                     }
@@ -142,20 +193,33 @@ namespace SnakobHippoMod {
             public static bool hasRan = false;
             public static bool UserScored = false;
 
+
             static void Prefix(Game __instance, ref GoalScoredPacket goalScored)
             {
-                Melon<HippoMelon>.Logger.Msg(goalScored.ScorerID);
-                Melon<HippoMelon>.Logger.Msg(__instance.GetLocalPlayerId());
-                
+                UserScored = goalScored.ScorerID == __instance.GetLocalPlayerId();
 
             }
 
             static void Postfix(Game __instance)
             {
-                if (hasRan) {
+                var melinst = Melon<HippoMelon>.Instance;
+
+                if (!melinst.UseGoalExplosion.Value)
+                {
+                    return;
+                }
+                bool didIScore = melinst.PersonalGoalExplosions.Value && !UserScored;
+                if (didIScore)
+                {
+                    return;
+                }
+
+                if (hasRan)
+                {
                     //MelonLogger.Error("not spawning more hippos");
-                    hasRan= false;
-                    return; }
+                    hasRan = false;
+                    return;
+                }
                 //Melon<HippoMelon>.Logger.Warning("Started");
                 GameObject puck = AppManager.Instance.game.Pucks[0].gameObject;
                 if (puck != null)
@@ -164,7 +228,7 @@ namespace SnakobHippoMod {
                     Vector3 puckPosition = puck.transform.position;
 
                     System.Random rnd = new System.Random();
-                    for (int i = 0; i < 3; i++)
+                    for (int i = 0; i < melinst.NumBigHippos.Value; i++)
                     {
                         GameObject hippoInstance = GameObject.Instantiate(Hippo, puckPosition, Quaternion.identity);
 
@@ -173,11 +237,13 @@ namespace SnakobHippoMod {
                         float z = rnd.Next(-59, 20);
 
                         Vector3 forceDirection = new Vector3(x, y, z);
-                        MelonLogger.Msg(forceDirection);
+                        //MelonLogger.Msg(forceDirection);
 
                         MelonCoroutines.Start(SimulateForce(hippoInstance, forceDirection));
                     }
-                    for (int i = 0; i < 6; i++)
+
+
+                    for (int i = 0; i < melinst.NumSmallHippos.Value; i++)
                     {
                         GameObject hippoInstance = GameObject.Instantiate(HippoMini, puckPosition, Quaternion.identity);
 
@@ -186,7 +252,7 @@ namespace SnakobHippoMod {
                         float z = rnd.Next(-59, 20);
 
                         Vector3 forceDirection = new Vector3(x, y, z);
-                        MelonLogger.Msg(forceDirection);
+                        //MelonLogger.Msg(forceDirection);
 
                         MelonCoroutines.Start(SimulateForce(hippoInstance, forceDirection));
                     }
@@ -220,7 +286,7 @@ namespace SnakobHippoMod {
                     GameObject.Destroy(hippoInstance.gameObject);
 
                 }
-            }   
+            }
         }
 
         [HarmonyPatch(typeof(MainMenuBehaviour))]
@@ -234,14 +300,43 @@ namespace SnakobHippoMod {
             }
         }
 
+
+        #endregion
+
+
+
         public override void OnInitializeMelon() {
 
-        HarmonyLib.Harmony harmony = new HarmonyLib.Harmony("Robb&Wallie.SnakobHippoMod");
-        harmony.PatchAll();
-        Melon<HippoMelon>.Logger.Msg("Initialized");
+            HarmonyLib.Harmony harmony = new HarmonyLib.Harmony("Robb&Wallie.SnakobHippoMod");
+            harmony.PatchAll();
+            Melon<HippoMelon>.Logger.Msg("Initialized");
+
+            #region MelonPrefs
+
+            HippoBottlemus = MelonPreferences.CreateCategory("HippoBottlemus");
+            UseHippoBottle = HippoBottlemus.CreateEntry<bool>("Use Hippos as Bottles", true);
+
+            HippoGoalExplosion = MelonPreferences.CreateCategory("Hippo Goal Explosions");
+            UseGoalExplosion = HippoGoalExplosion.CreateEntry<bool>("Use Hippo Goal Explosions", true);
+            PersonalGoalExplosions = HippoGoalExplosion.CreateEntry<bool>("Only show Hippos on your goals", false);
+            GoalExplosionSettingsCategory = HippoGoalExplosion.CreateEntry("Settings for your goal explosions", GoalExplosionSettings);
+            GoalExplosionSettings = MelonPreferences.CreateCategory("Goal Explosion Settings");
+            NumBigHippos = GoalExplosionSettings.CreateEntry("Number of big Hippos", 3);
+            NumSmallHippos = GoalExplosionSettings.CreateEntry("Number of small Hippos", 6);
 
 
-        prefabs = AssetBundleHelper.LoadAssets(System.Reflection.Assembly.GetExecutingAssembly(),GetType().Namespace);
+            HippoHatTrick = MelonPreferences.CreateCategory("Hippo Hattrick");
+            UseHippoHatTrick = HippoHatTrick.CreateEntry<bool>("Use Hippos as hattricks", true);
+            HatTrickHippoSize = HippoHatTrick.CreateEntry<HippoSize>("Hattrick Hippo Size", HippoSize.BIG);
+
+            #endregion
+
+
+
+
+            #region GettingAssets
+
+            prefabs = AssetBundleHelper.LoadAssets(System.Reflection.Assembly.GetExecutingAssembly(), GetType().Namespace);
 
             var assembly = System.Reflection.Assembly.GetExecutingAssembly();
             foreach (var resourceName in assembly.GetManifestResourceNames())
@@ -250,38 +345,46 @@ namespace SnakobHippoMod {
             }
 
             Melon<HippoMelon>.Logger.Msg(prefabs.Count);
-        foreach (var prefab in prefabs) {
+            foreach (var prefab in prefabs)
+            {
                 Melon<HippoMelon>.Logger.Msg(prefab.name);
-            if (prefab.name == "HippoBottle") {
-                Melon<HippoMelon>.Logger.Msg("Mini Hippo Found!: " + prefab.name);
-                HippoBottle = prefab;
-            }
-            if(prefab.name == "HippoSmallRagdoll") {
-                Melon<HippoMelon>.Logger.Msg("Mini ragdoll Hippo Found!: " + prefab.name);
-                HippoMini = prefab;
-            }
-            if(prefab.name == "Hippo") {
-                Melon<HippoMelon>.Logger.Msg("Big ragdoll Hippo Found!: " + prefab.name);
-                Hippo = prefab;
-            }
-                
-        }
-
-        }
-
-        public override void OnUpdate() {
-            if (Input.GetKeyDown(KeyCode.P)) {
-                try
+                if (prefab.name == "HippoBottle")
                 {
-                    var htm = GameObject.FindObjectOfType<HatTrickManager>();
-
-                    htm.HatTrick(AppManager.Instance.game.localPlayer, 3);
+                    Melon<HippoMelon>.Logger.Msg("Mini Hippo Found!: " + prefab.name);
+                    HippoBottle = prefab;
                 }
-                catch
+                if (prefab.name == "HippoSmallRagdoll")
                 {
-                    Melon<HippoMelon>.Logger.Warning("ho Hat TrickManager found");
+                    Melon<HippoMelon>.Logger.Msg("Mini ragdoll Hippo Found!: " + prefab.name);
+                    HippoMini = prefab;
                 }
+                if (prefab.name == "Hippo")
+                {
+                    Melon<HippoMelon>.Logger.Msg("Big ragdoll Hippo Found!: " + prefab.name);
+                    Hippo = prefab;
+                }
+
             }
+
+            #endregion
+
+
+
         }
+
+        //public override void OnUpdate() {
+        //    if (Input.GetKeyDown(KeyCode.P)) {
+        //        try
+        //        {
+        //            var htm = GameObject.FindObjectOfType<HatTrickManager>();
+
+        //            htm.HatTrick(AppManager.Instance.game.localPlayer, 3);
+        //        }
+        //        catch
+        //        {
+        //            Melon<HippoMelon>.Logger.Warning("ho Hat TrickManager found");
+        //        }
+        //    }
+        //}
     }
 }
