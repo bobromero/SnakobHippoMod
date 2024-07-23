@@ -90,7 +90,7 @@ namespace SnakobHippoMod {
                 go.AddComponent<HippoBottle>();
                 go.transform.position = temp.position;
                 go.transform.rotation = temp.rotation;
-                Melon<HippoMelon>.Logger.Msg(__instance.waterBottleInstance.name);
+                //Melon<HippoMelon>.Logger.Msg(__instance.waterBottleInstance.name);
 
             }
 
@@ -171,8 +171,9 @@ namespace SnakobHippoMod {
                 {
                     return;
                 }
-
-                if (hasRan) { return; }
+                if (hasRan) { 
+                    hasRan = false;
+                    return; }
                 HatTrickManager hatTrickManager = UnityEngine.Object.FindObjectOfType<HatTrickManager>();
 
                 if (hatTrickManager != null)
@@ -301,16 +302,6 @@ namespace SnakobHippoMod {
             }
         }
 
-        [HarmonyPatch(typeof(MainMenuBehaviour))]
-        [HarmonyPatch(nameof(MainMenuBehaviour.Awake))]
-        class Patch05
-        {
-            static void Postfix()
-            {
-                Patch03.hasRan = false;
-                MelonLogger.Error("switch this to loading for edge case where you load into a match from a bot match/practice if its even doing anything");
-            }
-        }
 
 
         #endregion
@@ -351,10 +342,7 @@ namespace SnakobHippoMod {
             prefabs = AssetBundleHelper.LoadAssets(System.Reflection.Assembly.GetExecutingAssembly(), GetType().Namespace);
 
             var assembly = System.Reflection.Assembly.GetExecutingAssembly();
-            foreach (var resourceName in assembly.GetManifestResourceNames())
-            {
-                MelonLogger.Msg(resourceName);
-            }
+            
 
             Melon<HippoMelon>.Logger.Msg("Got Hippos: "+prefabs.Count);
             foreach (var prefab in prefabs)
