@@ -7,6 +7,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <None Remove="Assets\bob" />
     <None Remove="Assets\hippo" />
     <None Remove="Assets\hippobottle" />
     <None Remove="Assets\hipposmallragdoll" />

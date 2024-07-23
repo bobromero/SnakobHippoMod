@@ -4,6 +4,7 @@ using UnityEngine;
 using HarmonyLib;
 using System.Collections;
 using SlapshotModdingUtils;
+using Il2CppInterop.Runtime.Injection;
 
 namespace SnakobHippoMod {
     public class HippoMelon : MelonMod {
@@ -57,28 +58,39 @@ namespace SnakobHippoMod {
         [HarmonyPatch(nameof(NetWaterBottleSpawner.SpawnWaterBottle))] // if possible use nameof() here
         class Patch01
         {
-            static bool Prefix(NetWaterBottleSpawner __instance)
-            {
-                if (!Melon<HippoMelon>.Instance.UseHippoBottle.Value)
-                {
-                    return true;
-                }
-                if (HippoBottle && __instance.waterBottlePrefab != HippoBottle)
-                {
-                    Melon<HippoMelon>.Logger.Msg("Changing prefab");
-                    __instance.waterBottlePrefab = HippoBottle;
-                }
-                return true;
-            }
+            public static bool hasRan = false;
+            public static int counter = 0;
 
             static void Postfix(NetWaterBottleSpawner __instance)
             {
+                if (hasRan)
+                {
+                    hasRan = false;
+                    return;   
+                }
                 if (!Melon<HippoMelon>.Instance.UseHippoBottle.Value)
                 {
                     return;
                 }
-                //Melon<HippoMelon>.Logger.Msg(__instance.waterBottleInstance.name);
+                if (counter % 2 == 0)
+                {
+                    var hippoBots = GameObject.FindObjectsOfType<HippoBottle>();
+                    foreach (var bottle in hippoBots)
+                    {
+                        GameObject.Destroy(bottle.gameObject);
+                    }
+                }
+                
+                hasRan = true;
                 __instance.waterBottleInstance.transform.rotation = Quaternion.EulerAngles(0f, 180f, 0f);
+                Transform temp = __instance.waterBottleInstance.transform;
+                GameObject.Destroy(__instance.waterBottleInstance);
+                var go = GameObject.Instantiate(HippoBottle);
+                counter++;
+                go.AddComponent<HippoBottle>();
+                go.transform.position = temp.position;
+                go.transform.rotation = temp.rotation;
+                Melon<HippoMelon>.Logger.Msg(__instance.waterBottleInstance.name);
 
             }
 
@@ -321,8 +333,8 @@ namespace SnakobHippoMod {
             PersonalGoalExplosions = HippoGoalExplosion.CreateEntry<bool>("Only show Hippos on your goals", false);
             GoalExplosionSettingsCategory = HippoGoalExplosion.CreateEntry("Settings for your goal explosions", GoalExplosionSettings);
             GoalExplosionSettings = MelonPreferences.CreateCategory("Goal Explosion Settings");
-            NumBigHippos = GoalExplosionSettings.CreateEntry("Number of big Hippos", 3);
-            NumSmallHippos = GoalExplosionSettings.CreateEntry("Number of small Hippos", 6);
+            NumBigHippos = GoalExplosionSettings.CreateEntry("Number of big Hippos", 2);
+            NumSmallHippos = GoalExplosionSettings.CreateEntry("Number of small Hippos", 3);
 
 
             HippoHatTrick = MelonPreferences.CreateCategory("Hippo Hattrick");
@@ -344,25 +356,27 @@ namespace SnakobHippoMod {
                 MelonLogger.Msg(resourceName);
             }
 
-            Melon<HippoMelon>.Logger.Msg(prefabs.Count);
+            Melon<HippoMelon>.Logger.Msg("Got Hippos: "+prefabs.Count);
             foreach (var prefab in prefabs)
             {
-                Melon<HippoMelon>.Logger.Msg(prefab.name);
+                //Melon<HippoMelon>.Logger.Msg(prefab.name);
+                
                 if (prefab.name == "HippoBottle")
                 {
-                    Melon<HippoMelon>.Logger.Msg("Mini Hippo Found!: " + prefab.name);
+                    //Melon<HippoMelon>.Logger.Msg("Mini Hippo Found!: " + prefab.name);
                     HippoBottle = prefab;
                 }
                 if (prefab.name == "HippoSmallRagdoll")
                 {
-                    Melon<HippoMelon>.Logger.Msg("Mini ragdoll Hippo Found!: " + prefab.name);
+                    //Melon<HippoMelon>.Logger.Msg("Mini ragdoll Hippo Found!: " + prefab.name);
                     HippoMini = prefab;
                 }
                 if (prefab.name == "Hippo")
                 {
-                    Melon<HippoMelon>.Logger.Msg("Big ragdoll Hippo Found!: " + prefab.name);
+                    //Melon<HippoMelon>.Logger.Msg("Big ragdoll Hippo Found!: " + prefab.name);
                     Hippo = prefab;
                 }
+
 
             }
 
@@ -386,5 +400,17 @@ namespace SnakobHippoMod {
         //        }
         //    }
         //}
+    }
+
+
+    [RegisterTypeInIl2Cpp]
+    public class HippoBottle : MonoBehaviour
+    {
+
+        public HippoBottle(IntPtr ptr) : base(ptr) { }
+
+        // Optional, only used in case you want to instantiate this class in the mono-side
+        // Don't use this on MonoBehaviours / Components!
+        public HippoBottle() : base(ClassInjector.DerivedConstructorPointer<HippoBottle>()) => ClassInjector.DerivedConstructorBody(this);
     }
 }
